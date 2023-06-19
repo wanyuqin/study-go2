@@ -1,0 +1,143 @@
+positions: instr line
+events: inuse_space(kB)
+
+ob=
+fl=(1) /usr/local/go/src/runtime/proc.go
+fn=(1) runtime.allocm
+0x10078ab43 1751 1025
+
+ob=
+fl=(2) /usr/local/go/src/runtime/mgcscavenge.go
+fn=(2) runtime.bgscavenge
+-104196 266 512
+
+ob=
+fl=(1)
+fn=(3) runtime.mstart0
++101364 1376 0
+cfl=(1)
+cfn=(4) runtime.mstart1
+calls=0 +101580 1425
+* * 512
+
+ob=
+fl=(1)
+fn=(4)
++216 1425 0
+cfl=(1)
+cfn=(5) runtime.schedule
+calls=0 +16884 3202
+* * 512
+
+ob=
+fl=(1)
+fn=(6) runtime.newm
++4972 2098 0
+cfl=(1)
+cfn=(1)
+calls=0 +2616 1751
+* * 1025
+
+ob=
+fl=(1)
+fn=(7) runtime.startm
++1680 2313 0
+cfl=(1)
+cfn=(6)
+calls=0 * 2098
+* * 1025
+
+ob=
+fl=(1)
+fn=(8) runtime.handoffp
++1456 2347 0
+cfl=(1)
+cfn=(7)
+calls=0 * 2313
+* * 512
+
+ob=
+fl=(1)
+fn=(9) runtime.wakep
++208 2412 0
+cfl=(1)
+cfn=(7)
+calls=0 -1456 2313
+* * 512
+
+ob=
+fl=(1)
+fn=(10) runtime.stoplockedm
++112 2426 0
+cfl=(1)
+cfn=(8)
+calls=0 -208 2347
+* * 512
+
+ob=
+fl=(1)
+fn=(11) runtime.resetspinning
++6740 3044 0
+cfl=(1)
+cfn=(9)
+calls=0 -112 2412
+* * 512
+
+ob=
+fl=(1)
+fn=(5)
++956 3127 0
+cfl=(1)
+cfn=(10)
+calls=0 -6740 2426
+* * 512
++544 3202 0
+cfl=(1)
+cfn=(11)
+calls=0 -956 3044
+* * 512
+
+ob=
+fl=(1)
+fn=(12) runtime.goschedImpl
++1632 3359 0
+cfl=(1)
+cfn=(5)
+calls=0 -544 3127
+* * 512
+
+ob=
+fl=(1)
+fn=(13) runtime.gopreempt_m
++664 3387 0
+cfl=(1)
+cfn=(12)
+calls=0 * 3359
+* * 512
+
+ob=
+fl=(3) /usr/local/go/src/runtime/stack.go
+fn=(14) runtime.newstack
++66484 1068 0
+cfl=(1)
+cfn=(13)
+calls=0 * 3387
+* * 512
+
+ob=
+fl=(4) /usr/local/go/src/runtime/asm_arm64.s
+fn=(15) runtime.mstart
++88156 118 0
+cfl=(1)
+cfn=(3)
+calls=0 -85664 1376
+* * 512
+
+ob=
+fl=(4)
+fn=(16) runtime.morestack
++448 314 0
+cfl=(3)
+cfn=(14)
+calls=0 -88156 1068
+* * 512
