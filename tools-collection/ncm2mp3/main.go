@@ -1,6 +1,7 @@
 package main
 
 import (
+	"changeme/menu"
 	"embed"
 
 	"github.com/wailsapp/wails/v2"
@@ -25,9 +26,11 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,
+		OnBeforeClose:    app.beforeClose,
 		Bind: []interface{}{
 			app,
 		},
+		Menu: menu.SettingsMenu(),
 	})
 
 	if err != nil {
