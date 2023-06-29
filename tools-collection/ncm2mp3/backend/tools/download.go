@@ -2,6 +2,7 @@ package tools
 
 import (
 	"changeme/configs"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
@@ -22,17 +23,20 @@ var defaultRetryTimes = 3
 var LinkDataMap map[string]*extractors.Data
 
 type ExtractLinkData struct {
-	Id      string `json:"id"`
-	Title   string `json:"title"`
-	Type    string `json:"type"`
-	Url     string `json:"url"`
-	Quality string `json:"quality"`
-	Size    string `json:"size"`
+	Id         string  `json:"id"`
+	Title      string  `json:"title"`
+	Type       string  `json:"type"`
+	Url        string  `json:"url"`
+	Quality    string  `json:"quality"`
+	Size       string  `json:"size"`
+	Byte       int64   `json:"byte"`
+	Percentage float64 `json:"percentage"` // 百分比
 }
 
 type StreamInfo struct {
 	Quality string `json:"quality"`
 	Size    string `json:"size"`
+	Byte    int64  `json:"byte"`
 }
 
 func init() {
@@ -78,6 +82,7 @@ func ExtractLink(link string) ([]ExtractLinkData, error) {
 			Id:      uid.String(),
 			Size:    streamInfo.Size,
 			Quality: streamInfo.Quality,
+			Byte:    streamInfo.Byte,
 		}
 
 		elds = append(elds, eld)
@@ -86,13 +91,8 @@ func ExtractLink(link string) ([]ExtractLinkData, error) {
 	return elds, err
 }
 
-type DownloadOptions struct {
-	Data         *extractors.Data
-	DownloadPath string
-}
-
-func Download(id string) error {
-	data, ok := LinkDataMap[id]
+func Download(ctx context.Context, eld ExtractLinkData) error {
+	data, ok := LinkDataMap[eld.Id]
 	if !ok {
 		return errors.New("数据未找到")
 	}
@@ -104,17 +104,21 @@ func Download(id string) error {
 		return err
 	}
 
-	options := DownloadOptions{
+	options := &DownloadOptions{
+		Ctx:          ctx,
+		Eld:          eld,
 		Data:         data,
 		DownloadPath: config.Download.Path,
+		mux:          sync.RWMutex{},
+		doneByte:     0,
 	}
-
+	// 开始下载 加入下载队列
+	GetDownloadList().Push(eld.Id)
 	err = download(options)
-
 	return err
 }
 
-func download(options DownloadOptions) error {
+func download(options *DownloadOptions) error {
 	data := options.Data
 	if len(data.Streams) == 0 {
 		return errors.New(fmt.Sprintf("no streams in title %s", data.Title))
@@ -159,9 +163,6 @@ func download(options DownloadOptions) error {
 		fmt.Printf("%s: file already exists, skipping\n", mergedFilePath)
 		return nil
 	}
-	//if len(stream.Parts) == 1 {
-	//
-	//}
 
 	wgp := utils.NewWaitGroupPool(defaultThreadNumber)
 	errs := make([]error, 0)
@@ -180,8 +181,8 @@ func download(options DownloadOptions) error {
 		parts[index] = partFilePath
 
 		wgp.Add()
-
-		go func(part *extractors.Part, fileName string) {
+		// 去下载每个part
+		go func(part *extractors.Part, fileName string, options *DownloadOptions) {
 			defer wgp.Done()
 			//	var err error
 			//if downloader.option.MultiThread {
@@ -196,7 +197,10 @@ func download(options DownloadOptions) error {
 				errs = append(errs, err)
 				lock.Unlock()
 			}
-		}(part, partFileName)
+
+			//// 下载完成之后计算百分比
+			//options.CalculatePercent()
+		}(part, partFileName, options)
 
 	}
 
@@ -226,11 +230,12 @@ func GetStreamInfo(stream *extractors.Stream) StreamInfo {
 	return StreamInfo{
 		Quality: stream.Quality,
 		Size:    fmt.Sprintf("%.2f MiB", float64(stream.Size)/(1024*1024)),
+		Byte:    stream.Size,
 	}
 
 }
 
-func Caption(url, fileName, ext string, transform func([]byte) ([]byte, error), options DownloadOptions) error {
+func Caption(url, fileName, ext string, transform func([]byte) ([]byte, error), options *DownloadOptions) error {
 	body, err := request.GetByte(url, url, nil)
 	if err != nil {
 		return err
@@ -263,7 +268,7 @@ func Caption(url, fileName, ext string, transform func([]byte) ([]byte, error), 
 
 }
 
-func save(part *extractors.Part, refer, fileName string, options DownloadOptions) error {
+func save(part *extractors.Part, refer, fileName string, options *DownloadOptions) error {
 	filePath, err := utils.FilePath(fileName, part.Ext, 0, options.DownloadPath, false)
 	if err != nil {
 		return err
@@ -299,18 +304,18 @@ func save(part *extractors.Part, refer, fileName string, options DownloadOptions
 	}
 	// close and rename temp file at the end of this function
 	defer func() {
-		// must close the file before rename or it will cause
-		// `The process cannot access the file because it is being used by another process.` error.
 		file.Close() // nolint
 		if err == nil {
 			os.Rename(tempFilePath, filePath) // nolint
 		}
 	}()
-
+	// 下载内容大小
 	temp := tempFileSize
 	for i := 0; ; i++ {
 		written, err := writeFile(part.URL, file, headers)
 		if err == nil {
+			options.AddDoneByte(written)
+			options.CalculatePercent()
 			break
 		} else if i+1 >= defaultRetryTimes {
 			return err
@@ -383,8 +388,8 @@ func (dl *DownloadList) Pop(id string) {
 }
 
 func (dl *DownloadList) Length() int {
-	dl.mux.RLocker()
-	defer dl.mux.RUnlock()
+	dl.mux.Lock()
+	defer dl.mux.Unlock()
 
 	return len(dl.Table)
 }

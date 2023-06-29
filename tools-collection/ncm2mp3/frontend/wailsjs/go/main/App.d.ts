@@ -6,7 +6,7 @@ import {main} from '../models';
 
 export function CancelDownload(arg1:string):Promise<void>;
 
-export function Download(arg1:string):Promise<void>;
+export function Download(arg1:tools.ExtractLinkData):Promise<void>;
 
 export function ExtractLink(arg1:string):Promise<Array<tools.ExtractLinkData>>;
 

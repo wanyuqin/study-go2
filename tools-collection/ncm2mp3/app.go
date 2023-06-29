@@ -21,6 +21,10 @@ import (
 	"path/filepath"
 )
 
+var (
+	DownloadDoneEvent = "download.done"
+)
+
 // App struct
 type App struct {
 	ctx context.Context
@@ -47,11 +51,28 @@ func (a *App) startup(ctx context.Context) {
 
 // 关闭之前进行校验
 func (a *App) beforeClose(ctx context.Context) bool {
+
 	dl := tools.GetDownloadList()
 	if dl.Length() > 0 {
-		return false
+		md, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+			Title:         "关闭",
+			Message:       "还有未完成的下载，是否退出",
+			Type:          runtime.QuestionDialog,
+			Buttons:       []string{"Yes", "No"},
+			DefaultButton: "Yes",
+			CancelButton:  "No",
+		})
+		if err != nil {
+			logger.Error(fmt.Sprintf("message dialog open failed: %v", err))
+			return true
+		}
+		if md == "No" {
+			return false
+		}
+		return true
 	}
 	return true
+
 }
 
 // Greet returns a greeting for the given name
@@ -87,8 +108,19 @@ func (a *App) ExtractLink(link string) ([]tools.ExtractLinkData, error) {
 }
 
 // Download 下载
-func (a *App) Download(id string) error {
-	return tools.Download(id)
+func (a *App) Download(data tools.ExtractLinkData) error {
+	err := tools.Download(a.ctx, data)
+	if err != nil {
+		logger.Error(fmt.Sprintf("download %s failed %v", data.Title, err))
+		return err
+	}
+	logger.Debug(fmt.Sprintf("download %s done ", data.Title))
+
+	// 下载完成
+	runtime.EventsEmit(a.ctx, DownloadDoneEvent, data)
+	//  全局删除
+	defer tools.GetDownloadList().Pop(data.Id)
+	return nil
 }
 
 // CancelDownload 取消下载

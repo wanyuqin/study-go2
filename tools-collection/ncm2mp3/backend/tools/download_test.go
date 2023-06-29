@@ -1,6 +1,8 @@
 package tools
 
 import (
+	"changeme/logger"
+	"context"
 	"github.com/iawia002/lux/extractors"
 	"github.com/iawia002/lux/extractors/acfun"
 	"github.com/iawia002/lux/extractors/bcy"
@@ -25,12 +27,13 @@ func setUp() {
 	extractors.Register("youtube", youtube.New())
 	extractors.Register("youtu", youtube.New())
 	extractors.Register("twitter", twitter.New())
+	logger.InitLogger()
 }
 
 func TestExtractLink(t *testing.T) {
 	setUp()
 	// https://www.bilibili.com/video/BV1dM4y1E7Yu/?spm_id_from=333.1007.tianma.1-2-2.click
-	u := "https://www.bilibili.com/video/BV1Yh4y1u7v9/?spm_id_from=333.1007.tianma.1-1-1.click&vd_source=a676487339e4dad210caaf99704cf1c2"
+	u := "https://www.bilibili.com/video/BV1fM4y187e2/?spm_id_from=333.1007.tianma.1-1-1.click"
 	//u := "https://www.acfun.cn/v/ac41618732"
 
 	linkData, err := ExtractLink(u)
@@ -40,7 +43,7 @@ func TestExtractLink(t *testing.T) {
 	}
 
 	for _, data := range linkData {
-		err = Download(data.Id)
+		err = Download(context.Background(), data)
 		if err != nil {
 			log.Fatal(err)
 			return
