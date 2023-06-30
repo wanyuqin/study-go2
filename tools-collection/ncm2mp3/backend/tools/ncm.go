@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"encoding/base64"
 	"encoding/binary"
@@ -19,7 +20,7 @@ import (
 	"time"
 )
 
-func ProcessNcmFile(name string) {
+func ProcessNcmFile(ctx context.Context, name string) {
 	fp, err := os.Open(name)
 	if err != nil {
 		log.Println(err)
@@ -130,6 +131,7 @@ func ProcessNcmFile(name string) {
 	case "flac":
 		addFLACTag(outputName, imgData, &meta)
 	}
+
 }
 
 func addMP3Tag(fileName string, imgData []byte, meta *MetaInfo) {

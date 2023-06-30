@@ -33,7 +33,7 @@ func setUp() {
 func TestExtractLink(t *testing.T) {
 	setUp()
 	// https://www.bilibili.com/video/BV1dM4y1E7Yu/?spm_id_from=333.1007.tianma.1-2-2.click
-	u := "https://www.bilibili.com/video/BV1fM4y187e2/?spm_id_from=333.1007.tianma.1-1-1.click"
+	u := "https://www.bilibili.com/video/BV1Qo4y1M7NG/?spm_id_from=333.1007.tianma.1-2-2.click"
 	//u := "https://www.acfun.cn/v/ac41618732"
 
 	linkData, err := ExtractLink(u)

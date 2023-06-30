@@ -5,6 +5,7 @@ import (
 	"changeme/configs"
 	"changeme/logger"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/dustin/go-humanize"
 	"github.com/iawia002/lux/extractors"
@@ -19,6 +20,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 var (
@@ -91,16 +93,23 @@ func (a *App) SelectDirectory() ([]NcmFile, error) {
 	return ncmList, err
 }
 
-func (a *App) Transform(path []string) {
-	if len(path) <= 0 {
+func (a *App) Transform(files []NcmFile) {
+	if len(files) <= 0 {
 		return
 	}
-
-	for _, p := range path {
-		if isNcm(p) {
-			go tools.ProcessNcmFile(p)
+	wg := &sync.WaitGroup{}
+	for i := range files {
+		if isNcm(files[i].Path) {
+			wg.Add(1)
+			go func(wg *sync.WaitGroup, file NcmFile) {
+				tools.ProcessNcmFile(a.ctx, file.Path)
+				logger.Debug(fmt.Sprintf("ncm transform %s done", file.Name))
+				runtime.EventsEmit(a.ctx, "ncm.transform.done", file.Name)
+				defer wg.Done()
+			}(wg, files[i])
 		}
 	}
+	wg.Wait()
 }
 
 func (a *App) ExtractLink(link string) ([]tools.ExtractLinkData, error) {
@@ -109,10 +118,18 @@ func (a *App) ExtractLink(link string) ([]tools.ExtractLinkData, error) {
 
 // Download 下载
 func (a *App) Download(data tools.ExtractLinkData) error {
+	logger.Debug(fmt.Sprintf("ctx is %d", &a.ctx))
+
 	err := tools.Download(a.ctx, data)
-	if err != nil {
+	if err != nil && !errors.Is(err, tools.FileExistErr) {
 		logger.Error(fmt.Sprintf("download %s failed %v", data.Title, err))
 		return err
+	}
+
+	if errors.Is(err, tools.FileExistErr) {
+		data.Percentage = 100
+		runtime.EventsEmit(a.ctx, DownloadDoneEvent, data)
+		return nil
 	}
 	logger.Debug(fmt.Sprintf("download %s done ", data.Title))
 
@@ -125,7 +142,7 @@ func (a *App) Download(data tools.ExtractLinkData) error {
 
 // CancelDownload 取消下载
 func (a *App) CancelDownload(id string) {
-
+	tools.CancelDownload(id)
 }
 
 // GetDownloadSettings 获取下载设置

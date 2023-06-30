@@ -7,16 +7,19 @@ import (
 	"github.com/iawia002/lux/extractors"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"math"
+	"os"
 	"sync"
 	"time"
 )
 
 var DownloadPercentRefresh = "download.percent.refresh"
 
+// DownloadOptions 下载参数
 type DownloadOptions struct {
 	Data         *extractors.Data
 	DownloadPath string
-	Ctx          context.Context
+	// wails ctx
+	Ctx context.Context
 
 	Eld      ExtractLinkData
 	mux      sync.RWMutex
@@ -82,4 +85,120 @@ func (d *DownloadOptions) StartWatchDownloadPercent() {
 			}
 		}
 	}
+}
+
+// DownloadList  下载列表
+type DownloadList struct {
+	mux sync.RWMutex
+
+	// 维护一个下载中的列表
+	Table map[string]struct{}
+
+	// 维护下载中的临时文件地址
+	DownloadTempPath map[string][]string
+}
+
+var dl *DownloadList
+
+var once sync.Once
+
+func GetDownloadList() *DownloadList {
+	once.Do(func() {
+		dl = NewDownloadList()
+	})
+	return dl
+}
+
+func NewDownloadList() *DownloadList {
+	return &DownloadList{
+		mux:              sync.RWMutex{},
+		Table:            make(map[string]struct{}),
+		DownloadTempPath: map[string][]string{},
+	}
+}
+
+func (dl *DownloadList) Push(id string) {
+	dl.mux.Lock()
+	defer dl.mux.Unlock()
+
+	dl.Table[id] = struct{}{}
+}
+
+func (dl *DownloadList) Pop(id string) {
+	dl.mux.Lock()
+	defer dl.mux.Unlock()
+	delete(dl.Table, id)
+}
+
+func (dl *DownloadList) Length() int {
+	dl.mux.Lock()
+	defer dl.mux.Unlock()
+
+	return len(dl.Table)
+}
+
+func (dl *DownloadList) PushTempPath(id string, path string) {
+	dl.mux.Lock()
+	defer dl.mux.Unlock()
+
+	if _, ok := dl.DownloadTempPath[id]; !ok {
+		dl.DownloadTempPath[id] = make([]string, 0)
+	}
+
+	dl.DownloadTempPath[id] = append(dl.DownloadTempPath[id], path)
+}
+
+func (dl *DownloadList) ClearTempFile(id string) {
+	dl.mux.Lock()
+	defer dl.mux.Unlock()
+
+	tempFilePaths := dl.DownloadTempPath[id]
+	var statErrs []error
+
+	for _, path := range tempFilePaths {
+		fi, statErr := os.Stat(path)
+		if statErr != nil {
+			statErrs = append(statErrs, statErr)
+			continue
+		}
+		// 校验文件是否在被写
+		for fi.Mode()&os.ModeAppend != 0 {
+			logger.Debug(fmt.Sprintf("%s is still been write", fi.Name()))
+		}
+
+		os.Remove(path)
+	}
+
+}
+
+// DownloadPool 管理下载任务
+type DownloadPool struct {
+	CtxMap map[string]context.CancelFunc
+}
+
+var dp *DownloadPool
+
+var dpOnce sync.Once
+
+func GetDownloadPool() *DownloadPool {
+	dpOnce.Do(func() {
+		dp = NewDownloadPool()
+	})
+	return dp
+
+}
+
+func NewDownloadPool() *DownloadPool {
+	return &DownloadPool{
+		CtxMap: make(map[string]context.CancelFunc),
+	}
+}
+
+func (d *DownloadPool) Add(id string, cancel context.CancelFunc) {
+	d.CtxMap[id] = cancel
+}
+
+func (d *DownloadPool) Cancel(id string) {
+	cancelFunc := d.CtxMap[id]
+	cancelFunc()
 }

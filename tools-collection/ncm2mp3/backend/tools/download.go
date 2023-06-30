@@ -2,6 +2,7 @@ package tools
 
 import (
 	"changeme/configs"
+	"changeme/logger"
 	"context"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 
 var defaultThreadNumber = 10
 var defaultRetryTimes = 3
+var FileExistErr = errors.New("file already exists")
 
 var LinkDataMap map[string]*extractors.Data
 
@@ -45,13 +47,14 @@ func init() {
 
 // ExtractLink 解析地址网页内容
 func ExtractLink(link string) ([]ExtractLinkData, error) {
+	logger.Debug(fmt.Sprintf("extract link %s", link))
 	data, err := extractors.Extract(link, extractors.Options{
 		Playlist: false,
 		Items:    "",
 	})
 
 	if err != nil {
-		fmt.Println(err)
+		logger.Error(err.Error())
 		return nil, err
 	}
 
@@ -63,27 +66,28 @@ func ExtractLink(link string) ([]ExtractLinkData, error) {
 			continue
 		}
 
-		sortStreams := GenSortedStreams(item.Streams)
-
-		streamName := sortStreams[0].ID
-
-		stream, ok := item.Streams[streamName]
-
-		if !ok {
-			continue
-		}
-
-		streamInfo := GetStreamInfo(stream)
-		LinkDataMap[uid.String()] = data[i]
 		eld := ExtractLinkData{
-			Title:   item.Title,
-			Url:     item.URL,
-			Type:    string(item.Type),
-			Id:      uid.String(),
-			Size:    streamInfo.Size,
-			Quality: streamInfo.Quality,
-			Byte:    streamInfo.Byte,
+			Title: item.Title,
+			Url:   item.URL,
+			Type:  string(item.Type),
+			Id:    uid.String(),
 		}
+
+		sortStreams := GenSortedStreams(item.Streams)
+		if len(sortStreams) > 0 {
+			streamName := sortStreams[0].ID
+			stream, ok := item.Streams[streamName]
+			if !ok {
+				continue
+
+			}
+			streamInfo := GetStreamInfo(stream)
+			eld.Size = streamInfo.Size
+			eld.Quality = streamInfo.Quality
+			eld.Byte = streamInfo.Byte
+		}
+
+		LinkDataMap[uid.String()] = data[i]
 
 		elds = append(elds, eld)
 	}
@@ -129,7 +133,7 @@ func download(options *DownloadOptions) error {
 	title := data.Title
 
 	streamName := sortStreams[0].ID
-
+	//stream 具体文件内容流
 	stream, ok := data.Streams[streamName]
 
 	if !ok {
@@ -161,13 +165,17 @@ func download(options *DownloadOptions) error {
 	// After the merge, the file size has changed, so we do not check whether the size matches
 	if mergedFileExists {
 		fmt.Printf("%s: file already exists, skipping\n", mergedFilePath)
-		return nil
+		return FileExistErr
 	}
 
 	wgp := utils.NewWaitGroupPool(defaultThreadNumber)
 	errs := make([]error, 0)
 	lock := sync.Mutex{}
 	parts := make([]string, len(stream.Parts))
+
+	// 每一个下载任务都要有一个ctx，用来控制goroutine的终止
+	ctx, cancel := context.WithCancel(context.Background())
+	GetDownloadPool().Add(options.Eld.Id, cancel)
 
 	for index, part := range stream.Parts {
 		if len(errs) > 0 {
@@ -182,7 +190,7 @@ func download(options *DownloadOptions) error {
 
 		wgp.Add()
 		// 去下载每个part
-		go func(part *extractors.Part, fileName string, options *DownloadOptions) {
+		go func(ctx context.Context, part *extractors.Part, fileName string, options *DownloadOptions) {
 			defer wgp.Done()
 			//	var err error
 			//if downloader.option.MultiThread {
@@ -190,7 +198,8 @@ func download(options *DownloadOptions) error {
 			//} else {
 			//	err = downloader.save(part, data.URL, fileName)
 			//}
-			err = save(part, data.URL, fileName, options)
+			// 文件保存
+			err = save(ctx, part, data.URL, fileName, options)
 			//err = save(part, data.URL, partFileName)
 			if err != nil {
 				lock.Lock()
@@ -200,7 +209,8 @@ func download(options *DownloadOptions) error {
 
 			//// 下载完成之后计算百分比
 			//options.CalculatePercent()
-		}(part, partFileName, options)
+
+		}(ctx, part, partFileName, options)
 
 	}
 
@@ -268,65 +278,72 @@ func Caption(url, fileName, ext string, transform func([]byte) ([]byte, error), 
 
 }
 
-func save(part *extractors.Part, refer, fileName string, options *DownloadOptions) error {
-	filePath, err := utils.FilePath(fileName, part.Ext, 0, options.DownloadPath, false)
-	if err != nil {
-		return err
-	}
-	fileSize, exists, err := utils.FileSize(filePath)
-	if exists && fileSize == part.Size {
+func save(ctx context.Context, part *extractors.Part, refer, fileName string, options *DownloadOptions) error {
+
+	select {
+	case <-ctx.Done():
+		logger.Debug("cancel download")
 		return nil
-	}
-
-	tempFilePath := filePath + ".download"
-
-	tempFileSize, _, err := utils.FileSize(tempFilePath)
-	if err != nil {
-		return err
-	}
-	headers := map[string]string{
-		"Referer": refer,
-	}
-	var (
-		file      *os.File
-		fileError error
-	)
-	if tempFileSize > 0 {
-		// range start from 0, 0-1023 means the first 1024 bytes of the file
-		headers["Range"] = fmt.Sprintf("bytes=%d-", tempFileSize)
-		file, fileError = os.OpenFile(tempFilePath, os.O_APPEND|os.O_WRONLY, 0644)
-	} else {
-		file, fileError = os.Create(tempFilePath)
-	}
-
-	if fileError != nil {
-		return fileError
-	}
-	// close and rename temp file at the end of this function
-	defer func() {
-		file.Close() // nolint
-		if err == nil {
-			os.Rename(tempFilePath, filePath) // nolint
-		}
-	}()
-	// 下载内容大小
-	temp := tempFileSize
-	for i := 0; ; i++ {
-		written, err := writeFile(part.URL, file, headers)
-		if err == nil {
-			options.AddDoneByte(written)
-			options.CalculatePercent()
-			break
-		} else if i+1 >= defaultRetryTimes {
+	default:
+		filePath, err := utils.FilePath(fileName, part.Ext, 0, options.DownloadPath, false)
+		if err != nil {
 			return err
 		}
-		temp += written
-		headers["Range"] = fmt.Sprintf("bytes=%d-", temp)
-		time.Sleep(1 * time.Second)
+		fileSize, exists, err := utils.FileSize(filePath)
+		if exists && fileSize == part.Size {
+			return nil
+		}
+
+		tempFilePath := filePath + ".download"
+
+		tempFileSize, _, err := utils.FileSize(tempFilePath)
+		if err != nil {
+			return err
+		}
+		headers := map[string]string{
+			"Referer": refer,
+		}
+		var (
+			file      *os.File
+			fileError error
+		)
+		if tempFileSize > 0 {
+			// range start from 0, 0-1023 means the first 1024 bytes of the file
+			headers["Range"] = fmt.Sprintf("bytes=%d-", tempFileSize)
+			file, fileError = os.OpenFile(tempFilePath, os.O_APPEND|os.O_WRONLY, 0644)
+		} else {
+			file, fileError = os.Create(tempFilePath)
+		}
+
+		if fileError != nil {
+			return fileError
+		}
+		// close and rename temp file at the end of this function
+		defer func() {
+			file.Close() // nolint
+			if err == nil {
+				os.Rename(tempFilePath, filePath) // nolint
+			}
+		}()
+		// 下载内容大小
+		temp := tempFileSize
+		for i := 0; ; i++ {
+			written, err := writeFile(part.URL, file, headers)
+			if err == nil {
+				options.AddDoneByte(written)
+				options.CalculatePercent()
+				break
+			} else if i+1 >= defaultRetryTimes {
+				return err
+			}
+			temp += written
+			headers["Range"] = fmt.Sprintf("bytes=%d-", temp)
+			time.Sleep(1 * time.Second)
+		}
+
+		return nil
 	}
-
 	return nil
-
 }
 
 func writeFile(url string, file *os.File, headers map[string]string) (int64, error) {
@@ -348,48 +365,9 @@ func writeFile(url string, file *os.File, headers map[string]string) (int64, err
 	return int64(written), nil
 }
 
-// DownloadList  下载列表
-type DownloadList struct {
-	mux sync.RWMutex
-
-	// 维护一个下载中的列表
-	Table map[string]struct{}
-}
-
-var dl *DownloadList
-
-var once sync.Once
-
-func GetDownloadList() *DownloadList {
-	once.Do(func() {
-		dl = NewDownloadList()
-	})
-	return dl
-}
-
-func NewDownloadList() *DownloadList {
-	return &DownloadList{
-		mux:   sync.RWMutex{},
-		Table: make(map[string]struct{}),
-	}
-}
-
-func (dl *DownloadList) Push(id string) {
-	dl.mux.Lock()
-	defer dl.mux.Unlock()
-
-	dl.Table[id] = struct{}{}
-}
-
-func (dl *DownloadList) Pop(id string) {
-	dl.mux.Lock()
-	defer dl.mux.Unlock()
-	delete(dl.Table, id)
-}
-
-func (dl *DownloadList) Length() int {
-	dl.mux.Lock()
-	defer dl.mux.Unlock()
-
-	return len(dl.Table)
+func CancelDownload(id string) {
+	// 取消下载任务
+	GetDownloadPool().Cancel(id)
+	// 删除临时文件
+	GetDownloadList().ClearTempFile(id)
 }

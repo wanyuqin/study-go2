@@ -18,4 +18,4 @@ export function SaveDownloadSettings(arg1:configs.DownloadConfig):Promise<void>;
 
 export function SelectDirectory():Promise<Array<main.NcmFile>>;
 
-export function Transform(arg1:Array<string>):Promise<void>;
+export function Transform(arg1:Array<main.NcmFile>):Promise<void>;
