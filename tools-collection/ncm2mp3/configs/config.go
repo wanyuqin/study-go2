@@ -57,7 +57,8 @@ func SaveDownloadSettings(downloadConfig DownloadConfig) error {
 		logger.Error(err.Error())
 		return err
 	}
-	file, err := os.OpenFile("./settings.yaml", os.O_TRUNC|os.O_WRONLY, 0666)
+
+	file, err := os.OpenFile("settings.yaml", os.O_TRUNC|os.O_WRONLY, 0666)
 	defer file.Close()
 
 	if err != nil {

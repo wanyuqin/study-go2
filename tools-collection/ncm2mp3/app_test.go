@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/iawia002/lux/downloader"
-	"github.com/iawia002/lux/extractors"
-	"github.com/iawia002/lux/extractors/bilibili"
+	"github.com/wanyuqin/lux/downloader"
+	"github.com/wanyuqin/lux/extractors"
+	"github.com/wanyuqin/lux/extractors/bilibili"
 	"log"
 	"testing"
 )

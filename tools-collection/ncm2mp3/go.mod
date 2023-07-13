@@ -10,7 +10,6 @@ require (
 	github.com/go-flac/flacvorbis v0.2.0
 	github.com/go-flac/go-flac v1.0.0
 	github.com/google/uuid v1.1.2
-	github.com/iawia002/lux v0.18.0
 	github.com/wailsapp/wails/v2 v2.5.1
 	gopkg.in/yaml.v2 v2.4.0
 )

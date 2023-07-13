@@ -56,8 +56,8 @@ github.com/google/uuid v1.1.2/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+
 github.com/ianlancetaylor/demangle v0.0.0-20220319035150-800ac71e25c2/go.mod h1:aYm2/VgdVmcIU8iMfdMvDMsRAQjcfZSKFby6HOFvi/w=
 github.com/iawia002/lia v0.1.0 h1:IzgR5pnOEt3bABB3TtcK5UCXkzcuc7+3GYxT0cVpYfU=
 github.com/iawia002/lia v0.1.0/go.mod h1:Jxu7iNh5z17HWuLedH3jwh09aa5SO3g2BI2Ct87aXpY=
-github.com/iawia002/lux v0.18.0 h1:sW1bRafyAoS3m6zQGih457aEFdffMZdhCQZ0zSxDA0Y=
-github.com/iawia002/lux v0.18.0/go.mod h1:uPXZ1N74qYiqRWvy6QLbZIlKBexa6XTMnmqAiO9Csrk=
+github.com/wanyuqin/lux v0.18.0 h1:sW1bRafyAoS3m6zQGih457aEFdffMZdhCQZ0zSxDA0Y=
+github.com/wanyuqin/lux v0.18.0/go.mod h1:uPXZ1N74qYiqRWvy6QLbZIlKBexa6XTMnmqAiO9Csrk=
 github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e h1:Q3+PugElBCf4PFpxhErSzU3/PY5sFL5Z6rfv4AbGAck=
 github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e/go.mod h1:alcuEEnZsY1WQsagKhZDsoPCRoOijYqhZvPwLG0kzVs=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=

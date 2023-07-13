@@ -3,7 +3,7 @@
 import { ref,onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElLoading, ElNotification } from 'element-plus'
-
+import DownloadSettings from "./views/DownloadSettings.vue"
 const showDownloadSettings = ref(true)
 
 const router = useRouter()
@@ -16,8 +16,6 @@ function changeRoute(route) {
 }
 
 onMounted(() => {
-   
-
     window.runtime.EventsOn("download.done", function (msg) {
         console.log(msg)
         ElNotification({
@@ -27,7 +25,6 @@ onMounted(() => {
 
         })
     })
-
     window.runtime.EventsOn("ncm.transform.done", function (msg) {
         console.log(msg)
         ElNotification({
@@ -42,11 +39,6 @@ onMounted(() => {
 </script>
 
 <template>
-
-
-
-
-
   <div class="common-layout">
     <el-container>
       <el-header>
@@ -54,6 +46,7 @@ onMounted(() => {
           <el-row class="mb-4">
             <el-button type="info" text @click="changeRoute('/ncmTools')">Ncm转换工具</el-button>
             <el-button type="info" text @click="changeRoute('/downloadTools')">视频下载器</el-button>
+            <el-button type="info" text @click="changeRoute('/downloadSettings')">下载设置</el-button>
           </el-row>
         </div>
       </el-header>
@@ -63,6 +56,9 @@ onMounted(() => {
       </el-main>
     </el-container>
   </div>
+
+  <!-- <DownloadSettings></DownloadSettings> -->
+
 </template>
 
 <style>
